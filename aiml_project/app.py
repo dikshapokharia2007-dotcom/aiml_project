@@ -11,9 +11,9 @@ from sklearn.metrics import (
     roc_auc_score, confusion_matrix, roc_curve
 )
 
-# ============================================================
+
 # PAGE CONFIG
-# ============================================================
+
 st.set_page_config(
     page_title="Employee Attrition Predictor",
     page_icon="🌸",
@@ -21,9 +21,9 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-# ============================================================
+
 # LOAD MODEL + SCALER
-# ============================================================
+
 @st.cache_resource
 def load_artifacts():
     model = joblib.load("models/model.pkl")
@@ -36,9 +36,8 @@ except Exception as e:
     model = None
     LOAD_ERROR = str(e)
 
-# ============================================================
-# LOAD TEST SET + RAW DATA FOR DASHBOARD (best-effort, cached)
-# ============================================================
+# LOAD TEST SET + RAW DATA FOR DASHBOARD 
+
 @st.cache_resource
 def load_test_data():
     # Rebuilt to exactly match the split used in model_training.ipynb
@@ -114,9 +113,9 @@ def decode_dummies(df):
 
     return d
 
-# ============================================================
+
 # EXACT FEATURE ORDER THE MODEL WAS TRAINED ON
-# ============================================================
+
 FEATURE_ORDER = [
     'Age', 'DailyRate', 'HomeDist', 'Education', 'EnvironmentSatisfaction',
     'HourlyRate', 'JobInvolvement', 'JobLvl', 'JobSatisfaction', 'MonthlyInc',
@@ -135,9 +134,9 @@ FEATURE_ORDER = [
     'OverTime_Yes'
 ]
 
-# ============================================================
+
 # PASTEL / ANIMATED CSS
-# ============================================================
+
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
@@ -337,9 +336,9 @@ footer {visibility: hidden;}
 </style>
 """, unsafe_allow_html=True)
 
-# ============================================================
+
 # HEADER
-# ============================================================
+
 st.markdown('<div class="hero-title">🌸 Employee Attrition Predictor</div>', unsafe_allow_html=True)
 st.markdown(
     '<div class="hero-subtitle">Fill in employee details below to predict the likelihood of attrition</div>',
@@ -354,9 +353,9 @@ if LOAD_ERROR:
     )
     st.stop()
 
-# ============================================================
+
 # INPUT FORM (TABS)
-# ============================================================
+
 tab1, tab2, tab3, tab4, tab5 = st.tabs(
     ["👤 Personal", "💼 Job Details", "💰 Compensation", "⭐ Satisfaction & Growth", "📊 Dashboard"]
 )
@@ -461,9 +460,9 @@ with tab5:
 
     PASTEL = ["#f9a8d4", "#a5b4fc", "#6ee7b7", "#fde68a", "#fca5a5", "#93c5fd"]
 
-    # --------------------------------------------------------
+    
     # HR INSIGHTS
-    # --------------------------------------------------------
+    
     if dash_view == "🌈 HR Insights":
         try:
             hr_raw = load_hr_data()
@@ -541,9 +540,9 @@ with tab5:
         except Exception as e:
             st.error(f"⚠️ Couldn't build HR insights: {e}")
 
-    # --------------------------------------------------------
+    
     # MODEL PERFORMANCE
-    # --------------------------------------------------------
+   
     else:
         try:
             X_test, y_test = load_test_data()
@@ -619,9 +618,9 @@ with tab5:
 st.markdown("<br>", unsafe_allow_html=True)
 
 
-# ============================================================
+
 # ENCODING LOGIC (must mirror pd.get_dummies(drop_first=True) exactly)
-# ============================================================
+
 def build_feature_vector():
     row = {
         'Age': age,
@@ -686,9 +685,9 @@ def build_feature_vector():
     vector = np.array([[row[col] for col in FEATURE_ORDER]], dtype=float)
     return vector
 
-# ============================================================
+
 # PREDICT BUTTON
-# ============================================================
+
 col_a, col_b, col_c = st.columns([1, 1, 1])
 with col_b:
     predict_clicked = st.button("✨ Predict Attrition Risk", use_container_width=True)
