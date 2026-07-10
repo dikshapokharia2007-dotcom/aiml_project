@@ -750,6 +750,6 @@ if predict_clicked:
 
 st.markdown("<br><br>", unsafe_allow_html=True)
 st.markdown(
-    '<div style="text-align:center; color:#9ca3af; font-size:0.85rem;">Built with 💜 using Streamlit · Employee Attrition Prediction Model</div>',
+    '<div style="text-align:center; color:#9ca3af; font-size:0.85rem;">💜  Employee Attrition Prediction Model 💜</div>',
     unsafe_allow_html=True
 )
