@@ -114,6 +114,53 @@ def decode_dummies(df):
     return d
 
 
+# EMPLOYEE RECORD LOOKUP / AUTO-FILL
+# Lets HR load a REAL employee's recorded values (incl. Job/Relationship
+# Satisfaction) instead of guessing them. The model never sees Attrition
+# during prediction -- it's only revealed afterwards, for comparison.
+
+FIELD_FROM_RECORD = {
+    "age": "Age", "gender": "Gender", "marital": "MaritalStatus",
+    "home_dist": "HomeDist", "education": "Education", "edu_field": "EducationField",
+    "department": "Department", "job_role": "JobRole", "job_level": "JobLvl",
+    "business_travel": "BusinessTravel", "overtime": "OverTime",
+    "num_companies": "NumCompaniesWorked", "monthly_income": "MonthlyInc",
+    "daily_rate": "DailyRate", "monthly_rate": "MonthlyRate", "hourly_rate": "HourlyRate",
+    "salary_hike": "SalaryHike", "stock_option": "StockOptionLevel",
+    "env_satisfaction": "EnvironmentSatisfaction", "job_satisfaction": "JobSatisfaction",
+    "relationship_satisfaction": "RelationshipSatisfaction", "job_involvement": "JobInvolvement",
+    "work_life_balance": "Work_Life_Bal", "performance_rating": "PerformanceRating",
+    "training_times": "TrainingTimesLastYear", "total_working_years": "TotalWorkingYears",
+    "years_at_company": "YearsAtCompany", "years_in_role": "YearsInCurrentRole",
+    "years_since_promotion": "YearsSinceLastPromotion", "years_with_manager": "YearsWithCurrManager",
+}
+
+def apply_employee_record():
+    """Callback for the employee selector. Pulls the chosen employee's real
+    recorded values (from data/hr.csv) into every input widget below, via
+    st.session_state, so nobody has to guess Job/Relationship Satisfaction
+    or any other field. Attrition itself is stored separately and is never
+    fed to the model -- it's only shown after prediction for comparison."""
+    choice = st.session_state.get("employee_selector", "— Manual Entry —")
+    if choice == "— Manual Entry —":
+        st.session_state["_loaded_attrition"] = None
+        st.session_state["_loaded_id"] = None
+        return
+
+    row_idx = int(choice.split("#")[1])
+    df = decode_dummies(load_hr_data())
+    row = df.iloc[row_idx]
+
+    for widget_key, col_name in FIELD_FROM_RECORD.items():
+        val = row[col_name]
+        if isinstance(val, (np.integer, np.floating)):
+            val = int(val)
+        st.session_state[widget_key] = val
+
+    st.session_state["_loaded_attrition"] = row["AttritionLabel"]
+    st.session_state["_loaded_id"] = row_idx
+
+
 # EXACT FEATURE ORDER THE MODEL WAS TRAINED ON
 
 FEATURE_ORDER = [
@@ -354,6 +401,44 @@ if LOAD_ERROR:
     st.stop()
 
 
+# EMPLOYEE RECORD SELECTOR (auto-fill from real HR data)
+
+with st.container(border=True):
+    sel_col1, sel_col2 = st.columns([2, 3])
+    with sel_col1:
+        try:
+            n_rows = len(load_hr_data())
+            employee_options = ["— Manual Entry —"] + [f"Employee #{i}" for i in range(n_rows)]
+        except Exception:
+            employee_options = ["— Manual Entry —"]
+        st.selectbox(
+            "🔄 Load Employee Record",
+            employee_options,
+            key="employee_selector",
+            on_change=apply_employee_record,
+            help=(
+                "Auto-fills every field below -- including Job Satisfaction and "
+                "Relationship Satisfaction -- from that employee's real recorded "
+                "HR data. Nobody has to guess these values."
+            ),
+        )
+    with sel_col2:
+        if st.session_state.get("_loaded_id") is not None:
+            st.caption(
+                f"✅ Loaded **Employee #{st.session_state['_loaded_id']}**'s real recorded data. "
+                "Every field below now reflects their actual survey/HR record. "
+                "Feel free to tweak any value to simulate a what-if scenario "
+                "(e.g. \"what if satisfaction drops next quarter?\")."
+            )
+        else:
+            st.caption(
+                "No employee loaded yet. Either load a real record above, "
+                "or fill in the fields below manually for a hypothetical profile."
+            )
+
+st.markdown("<br>", unsafe_allow_html=True)
+
+
 # INPUT FORM (TABS)
 
 tab1, tab2, tab3, tab4, tab5 = st.tabs(
@@ -365,22 +450,24 @@ with tab1:
         st.markdown('<div class="section-header">👤 Personal Information</div>', unsafe_allow_html=True)
         c1, c2, c3 = st.columns(3)
         with c1:
-            age = st.slider("Age", 18, 60, 30)
-            gender = st.selectbox("Gender", ["Male", "Female"])
+            age = st.slider("Age", 18, 60, 30, key="age")
+            gender = st.selectbox("Gender", ["Male", "Female"], key="gender")
         with c2:
-            marital = st.selectbox("Marital Status", ["Single", "Married", "Divorced"])
-            home_dist = st.slider("Distance From Home (km)", 1, 29, 5)
+            marital = st.selectbox("Marital Status", ["Single", "Married", "Divorced"], key="marital")
+            home_dist = st.slider("Distance From Home (km)", 1, 29, 5, key="home_dist")
         with c3:
             education = st.selectbox(
                 "Education Level",
                 [1, 2, 3, 4, 5],
                 index=2,
                 format_func=lambda x: {1: "1 - Below College", 2: "2 - College", 3: "3 - Bachelor",
-                                        4: "4 - Master", 5: "5 - Doctor"}[x]
+                                        4: "4 - Master", 5: "5 - Doctor"}[x],
+                key="education"
             )
             edu_field = st.selectbox(
                 "Education Field",
-                ["Life Sciences", "Medical", "Marketing", "Technical Degree", "Other", "Human Resources"]
+                ["Life Sciences", "Medical", "Marketing", "Technical Degree", "Other", "Human Resources"],
+                key="edu_field"
             )
 
 with tab2:
@@ -388,65 +475,80 @@ with tab2:
         st.markdown('<div class="section-header">💼 Job Details</div>', unsafe_allow_html=True)
         c1, c2, c3 = st.columns(3)
         with c1:
-            department = st.selectbox("Department", ["Research & Development", "Sales", "Human Resources"])
+            department = st.selectbox("Department", ["Research & Development", "Sales", "Human Resources"],
+                                       key="department")
             job_role = st.selectbox(
                 "Job Role",
                 ["Sales Executive", "Research Scientist", "Laboratory Technician", "Manufacturing Director",
                  "Healthcare Representative", "Manager", "Sales Representative", "Research Director",
-                 "Human Resources"]
+                 "Human Resources"],
+                key="job_role"
             )
         with c2:
-            job_level = st.slider("Job Level", 1, 5, 2)
-            business_travel = st.selectbox("Business Travel", ["Travel_Rarely", "Travel_Frequently", "Non-Travel"])
+            job_level = st.slider("Job Level", 1, 5, 2, key="job_level")
+            business_travel = st.selectbox("Business Travel", ["Travel_Rarely", "Travel_Frequently", "Non-Travel"],
+                                            key="business_travel")
         with c3:
-            overtime = st.selectbox("OverTime", ["No", "Yes"])
-            num_companies = st.slider("Number of Companies Worked At", 0, 9, 2)
+            overtime = st.selectbox("OverTime", ["No", "Yes"], key="overtime")
+            num_companies = st.slider("Number of Companies Worked At", 0, 9, 2, key="num_companies")
 
 with tab3:
     with st.container(border=True):
         st.markdown('<div class="section-header">💰 Compensation</div>', unsafe_allow_html=True)
         c1, c2, c3 = st.columns(3)
         with c1:
-            monthly_income = st.slider("Monthly Income ($)", 1000, 20000, 5000, step=100)
-            daily_rate = st.slider("Daily Rate", 100, 1500, 800)
+            monthly_income = st.slider("Monthly Income ($)", 1000, 20000, 5000, step=100, key="monthly_income")
+            daily_rate = st.slider("Daily Rate", 100, 1500, 800, key="daily_rate")
         with c2:
-            monthly_rate = st.slider("Monthly Rate", 2000, 27000, 14000, step=100)
-            hourly_rate = st.slider("Hourly Rate", 30, 100, 65)
+            monthly_rate = st.slider("Monthly Rate", 2000, 27000, 14000, step=100, key="monthly_rate")
+            hourly_rate = st.slider("Hourly Rate", 30, 100, 65, key="hourly_rate")
         with c3:
-            salary_hike = st.slider("Percent Salary Hike (%)", 11, 25, 15)
-            stock_option = st.selectbox("Stock Option Level", [0, 1, 2, 3])
+            salary_hike = st.slider("Percent Salary Hike (%)", 11, 25, 15, key="salary_hike")
+            stock_option = st.selectbox("Stock Option Level", [0, 1, 2, 3], key="stock_option")
 
 with tab4:
     with st.container(border=True):
         st.markdown('<div class="section-header">⭐ Satisfaction & Growth</div>', unsafe_allow_html=True)
+        st.caption(
+            "ℹ️ These scores come from the employee's existing HR survey records "
+            "(e.g. annual engagement survey) -- load a real employee above to "
+            "pull them in automatically, or enter known values manually."
+        )
         c1, c2, c3 = st.columns(3)
         satisfaction_map = {1: "1 - Low", 2: "2 - Medium", 3: "3 - High", 4: "4 - Very High"}
         with c1:
             env_satisfaction = st.selectbox("Environment Satisfaction", [1, 2, 3, 4], index=2,
-                                             format_func=lambda x: satisfaction_map[x])
-            job_satisfaction = st.selectbox("Job Satisfaction", [1, 2, 3, 4], index=2,
-                                             format_func=lambda x: satisfaction_map[x])
-            relationship_satisfaction = st.selectbox("Relationship Satisfaction", [1, 2, 3, 4], index=2,
-                                                       format_func=lambda x: satisfaction_map[x])
+                                             format_func=lambda x: satisfaction_map[x], key="env_satisfaction")
+            job_satisfaction = st.selectbox(
+                "Job Satisfaction", [1, 2, 3, 4], index=2,
+                format_func=lambda x: satisfaction_map[x], key="job_satisfaction",
+                help="Employee's self-reported score from their last HR satisfaction survey."
+            )
+            relationship_satisfaction = st.selectbox(
+                "Relationship Satisfaction (Coworkers)", [1, 2, 3, 4], index=2,
+                format_func=lambda x: satisfaction_map[x], key="relationship_satisfaction",
+                help="Satisfaction with workplace relationships/colleagues -- not marital status. "
+                     "Marital Status is set separately on the Personal tab."
+            )
         with c2:
             job_involvement = st.selectbox("Job Involvement", [1, 2, 3, 4], index=2,
-                                            format_func=lambda x: satisfaction_map[x])
+                                            format_func=lambda x: satisfaction_map[x], key="job_involvement")
             work_life_balance = st.selectbox("Work-Life Balance", [1, 2, 3, 4], index=2,
-                                              format_func=lambda x: satisfaction_map[x])
+                                              format_func=lambda x: satisfaction_map[x], key="work_life_balance")
             performance_rating = st.selectbox("Performance Rating", [1, 2, 3, 4], index=2,
-                                               format_func=lambda x: satisfaction_map[x])
+                                               format_func=lambda x: satisfaction_map[x], key="performance_rating")
         with c3:
-            training_times = st.slider("Training Times Last Year", 0, 6, 2)
-            total_working_years = st.slider("Total Working Years", 0, 40, 8)
-            years_at_company = st.slider("Years At Company", 0, 40, 5)
+            training_times = st.slider("Training Times Last Year", 0, 6, 2, key="training_times")
+            total_working_years = st.slider("Total Working Years", 0, 40, 8, key="total_working_years")
+            years_at_company = st.slider("Years At Company", 0, 40, 5, key="years_at_company")
 
         c4, c5, c6 = st.columns(3)
         with c4:
-            years_in_role = st.slider("Years In Current Role", 0, 18, 3)
+            years_in_role = st.slider("Years In Current Role", 0, 18, 3, key="years_in_role")
         with c5:
-            years_since_promotion = st.slider("Years Since Last Promotion", 0, 15, 1)
+            years_since_promotion = st.slider("Years Since Last Promotion", 0, 15, 1, key="years_since_promotion")
         with c6:
-            years_with_manager = st.slider("Years With Current Manager", 0, 17, 3)
+            years_with_manager = st.slider("Years With Current Manager", 0, 17, 3, key="years_with_manager")
 
 with tab5:
     dash_col1, dash_col2 = st.columns([1, 1])
@@ -747,6 +849,28 @@ if predict_clicked:
 
     if pred == 0:
         st.balloons()
+
+    # Reveal the real recorded outcome AFTER prediction, for comparison only.
+    # This is never shown to the model -- Attrition is excluded from the
+    # feature vector in build_feature_vector(). It's shown here purely to
+    # demonstrate the prediction wasn't computed from the true answer.
+    loaded_id = st.session_state.get("_loaded_id")
+    loaded_attrition = st.session_state.get("_loaded_attrition")
+    if loaded_id is not None and loaded_attrition is not None:
+        st.markdown("<br>", unsafe_allow_html=True)
+        with st.expander(f"✅ Compare to Employee #{loaded_id}'s Actual Recorded Outcome"):
+            predicted_label = "Left" if pred == 1 else "Stayed"
+            match = (predicted_label == "Left") == (loaded_attrition == "Yes")
+            st.write(f"**Model predicted:** {predicted_label}")
+            st.write(f"**Actually recorded in HR data:** {'Left' if loaded_attrition == 'Yes' else 'Stayed'}")
+            if match:
+                st.success("✔️ Prediction matches the real recorded outcome.")
+            else:
+                st.warning("✖️ Prediction differs from the real recorded outcome (expected sometimes -- no model is 100% accurate).")
+            st.caption(
+                "Note: Attrition was never included in the input features used for "
+                "prediction -- it's only shown here afterward, for validation."
+            )
 
 st.markdown("<br><br>", unsafe_allow_html=True)
 st.markdown(
